@@ -140,8 +140,29 @@ class DonemListScreen extends ConsumerWidget {
                                 ),
                               );
                               if (confirm == true) {
-                                await db.deleteDonem(d.id);
-                                ref.invalidate(donemlerProvider);
+                                try {
+                                  await db.deleteDonem(d.id);
+                                  ref.invalidate(donemlerProvider);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Dönem başarıyla silindi',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(e.toString()),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
                               }
                             },
                           ),

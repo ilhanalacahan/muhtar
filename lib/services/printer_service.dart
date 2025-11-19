@@ -88,6 +88,7 @@ class PrinterService {
     required double odenen,
     required double kalan,
     required String tarih,
+    String? tahakkukUuid,
   }) async {
     if (!isConnected()) {
       throw Exception("Yazıcı bağlı değil");
@@ -188,10 +189,15 @@ class PrinterService {
     // ------------ Alt Bilgi ------------
     bixolon.addText(altBilgi, fontType: 1, bold: false, align: 'C');
     bixolon.addFeed(5);
-    //bixolon.addBarcode("123456789");
-    //generate uuid4
-    var uid = const Uuid().v4();
-    bixolon.addQRCode(uid);
+
+    // QR Code with tahakkuk UUID
+    if (tahakkukUuid != null && tahakkukUuid.isNotEmpty) {
+      bixolon.addQRCode(tahakkukUuid);
+    } else {
+      // Fallback to random UUID if not provided
+      var uid = const Uuid().v4();
+      bixolon.addQRCode(uid);
+    }
 
     // Yazdır
     final bytes = bixolon.getBytes();

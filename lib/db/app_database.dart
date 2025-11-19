@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 part 'app_database.g.dart';
 
@@ -45,7 +46,12 @@ class Aboneler extends Table {
   TextColumn get tel => text().nullable()();
   TextColumn get aboneNo => text().named('abone_no')();
   TextColumn get saatNo => text().named('saat_no').nullable()();
-  TextColumn get saatDurumu => text().named('saat_durumu').nullable()();
+  TextColumn get saatDurumu => text()
+      .named('saat_durumu')
+      .nullable()
+      .customConstraint(
+        "CHECK (saat_durumu IN ('normal', 'ters', 'arızalı') OR saat_durumu IS NULL)",
+      )();
   TextColumn get adres => text().nullable()();
   TextColumn get aciklama => text().nullable()();
   IntColumn get aktif => integer().withDefault(const Constant(1))();
@@ -64,6 +70,7 @@ class Endeksler extends Table {
 
 class Tahakkuklar extends Table {
   IntColumn get id => integer().autoIncrement()();
+  TextColumn get uuid => text().clientDefault(() => const Uuid().v4())();
   IntColumn get aboneId =>
       integer().named('abone_id').references(Aboneler, #id)();
   IntColumn get donemId =>
@@ -91,13 +98,34 @@ class Tahsilatlar extends Table {
   TextColumn get aciklama => text().nullable()();
 }
 
+class Sayaclar extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get aboneId =>
+      integer().named('abone_id').references(Aboneler, #id)();
+  TextColumn get saatNo => text().named('saat_no')();
+  RealColumn get baslangicEndeks => real().named('baslangic_endeks')();
+  TextColumn get baslangicTarihi => text().named('baslangic_tarihi')();
+  RealColumn get bitisEndeks => real().named('bitis_endeks').nullable()();
+  TextColumn get bitisTarihi => text().named('bitis_tarihi').nullable()();
+  IntColumn get aktif => integer().withDefault(const Constant(1))();
+  TextColumn get aciklama => text().nullable()();
+}
+
 @DriftDatabase(
-  tables: [Ayarlar, Donemler, Aboneler, Endeksler, Tahakkuklar, Tahsilatlar],
+  tables: [
+    Ayarlar,
+    Donemler,
+    Aboneler,
+    Endeksler,
+    Tahakkuklar,
+    Tahsilatlar,
+    Sayaclar,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -106,6 +134,42 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createTable(endeksler);
         await migrator.createTable(tahakkuklar);
         await migrator.createTable(tahsilatlar);
+      }
+      if (from < 3) {
+        // Add uuid column to tahakkuklar using raw SQL
+        await customStatement(
+          'ALTER TABLE tahakkuklar ADD COLUMN uuid TEXT NOT NULL DEFAULT \"\"',
+        );
+        // Create sayaclar table
+        await customStatement("""CREATE TABLE IF NOT EXISTS sayaclar (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            abone_id INTEGER NOT NULL REFERENCES aboneler(id),
+            saat_no TEXT NOT NULL,
+            baslangic_endeks REAL NOT NULL,
+            baslangic_tarihi TEXT NOT NULL,
+            bitis_endeks REAL,
+            bitis_tarihi TEXT,
+            aktif INTEGER DEFAULT 1,
+            aciklama TEXT
+          )""");
+        // Update aboneler with CHECK constraint for saat_durumu
+        await customStatement("""CREATE TABLE IF NOT EXISTS aboneler_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ad TEXT NOT NULL,
+            soyad TEXT,
+            tel TEXT,
+            abone_no TEXT NOT NULL,
+            saat_no TEXT,
+            saat_durumu TEXT CHECK (saat_durumu IN ('normal', 'ters', 'ariza') OR saat_durumu IS NULL),
+            adres TEXT,
+            aciklama TEXT,
+            aktif INTEGER DEFAULT 1
+          )""");
+        await customStatement(
+          'INSERT INTO aboneler_new SELECT * FROM aboneler',
+        );
+        await customStatement('DROP TABLE aboneler');
+        await customStatement('ALTER TABLE aboneler_new RENAME TO aboneler');
       }
     },
   );
@@ -225,8 +289,20 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateDonem(int id, DonemlerCompanion companion) =>
       (update(donemler)..where((t) => t.id.equals(id))).write(companion);
 
-  Future<void> deleteDonem(int id) =>
-      (delete(donemler)..where((t) => t.id.equals(id))).go();
+  Future<bool> canDeleteOrEditDonem(int donemId) async {
+    final tahakkukList = await getTahakkuklarByDonem(donemId);
+    return tahakkukList.isEmpty;
+  }
+
+  Future<void> deleteDonem(int id) async {
+    final canDelete = await canDeleteOrEditDonem(id);
+    if (!canDelete) {
+      throw Exception(
+        'Bu döneme ait tahakkuklar bulunduğu için dönem silinemez',
+      );
+    }
+    await (delete(donemler)..where((t) => t.id.equals(id))).go();
+  }
 
   // Endeks methods
   Future<List<EndekslerData>> getEndeksByAbone(int aboneId) {
@@ -383,6 +459,95 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> updateSettings(AyarlarCompanion settings) async {
     await update(ayarlar).write(settings);
+  }
+
+  // Sayaclar methods
+  Future<int> createSayac({
+    required int aboneId,
+    required String saatNo,
+    required double baslangicEndeks,
+    required String baslangicTarihi,
+    String? aciklama,
+  }) {
+    return into(sayaclar).insert(
+      SayaclarCompanion.insert(
+        aboneId: aboneId,
+        saatNo: saatNo,
+        baslangicEndeks: baslangicEndeks,
+        baslangicTarihi: baslangicTarihi,
+        aciklama: Value(aciklama),
+      ),
+    );
+  }
+
+  Future<List<SayaclarData>> getSayaclarByAbone(int aboneId) {
+    return (select(sayaclar)..where((t) => t.aboneId.equals(aboneId))).get();
+  }
+
+  Future<SayaclarData?> getAktifSayac(int aboneId) {
+    return (select(sayaclar)
+          ..where((t) => t.aboneId.equals(aboneId) & t.aktif.equals(1))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<void> deaktivateSayac(int sayacId, double bitisEndeks) {
+    return (update(sayaclar)..where((t) => t.id.equals(sayacId))).write(
+      SayaclarCompanion(
+        aktif: const Value(0),
+        bitisEndeks: Value(bitisEndeks),
+        bitisTarihi: Value(DateTime.now().toIso8601String()),
+      ),
+    );
+  }
+
+  Future<void> changeMeter({
+    required int aboneId,
+    required int eskiSayacId,
+    required double eskiSayacSonEndeks,
+    required String yeniSaatNo,
+    required double yeniSayacEndeks,
+  }) async {
+    await transaction(() async {
+      // Eski sayacı deaktive et
+      await deaktivateSayac(eskiSayacId, eskiSayacSonEndeks);
+
+      // Son endeks kaydı oluştur
+      await createEndeks(
+        aboneId: aboneId,
+        tarih: DateTime.now().toIso8601String(),
+        endeks: eskiSayacSonEndeks,
+        okuyanKisi: 'Sistem',
+        aciklama: 'Sayaç değişimi - eski sayaç son endeks',
+      );
+
+      // Yeni sayacı oluştur
+      await createSayac(
+        aboneId: aboneId,
+        saatNo: yeniSaatNo,
+        baslangicEndeks: yeniSayacEndeks,
+        baslangicTarihi: DateTime.now().toIso8601String(),
+        aciklama: 'Sayaç değişimi',
+      );
+
+      // Yeni sayaç için endeks kaydı oluştur
+      await createEndeks(
+        aboneId: aboneId,
+        tarih: DateTime.now().toIso8601String(),
+        endeks: yeniSayacEndeks,
+        okuyanKisi: 'Sistem',
+        aciklama: 'Sayaç değişimi - yeni sayaç ilk endeks',
+      );
+
+      // Abone tablosunda sayaç bilgisini güncelle
+      await updateAbone(aboneId, AbonelerCompanion(saatNo: Value(yeniSaatNo)));
+    });
+  }
+
+  Future<TahakkuklarData?> getTahakkukByUuid(String uuid) {
+    return (select(
+      tahakkuklar,
+    )..where((t) => t.uuid.equals(uuid))).getSingleOrNull();
   }
 }
 

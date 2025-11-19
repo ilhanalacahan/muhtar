@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:drift/drift.dart' hide Column;
+import 'package:image_picker/image_picker.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import '../../db/app_database.dart';
 import '../../providers.dart';
 import '../../services/printer_service.dart';
 import 'abone_form_screen.dart';
+import '../endeks/endeks_form_screen.dart';
+import '../sayac/sayac_degistir_screen.dart';
 
 // Provider'lar
 final aboneDetailProvider = FutureProvider.family<AbonelerData?, int>((
@@ -114,8 +118,10 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
                       ),
                     ],
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceEvenly,
+                    spacing: 2,
+                    runSpacing: 8,
                     children: [
                       _buildActionButton(
                         icon: Icons.speed,
@@ -125,15 +131,21 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
                       ),
                       _buildActionButton(
                         icon: Icons.payments,
-                        label: 'Tahsilat Yap',
+                        label: 'Tahsilat',
                         color: const Color(0xFF2E7D32),
                         onTap: () => _showTahsilatDialog(abone),
                       ),
                       _buildActionButton(
-                        icon: Icons.print,
-                        label: 'Yazdır',
-                        color: Colors.orange.shade700,
-                        onTap: () => _printReceipt(abone),
+                        icon: Icons.qr_code_scanner,
+                        label: 'QR Oku',
+                        color: Colors.purple.shade700,
+                        onTap: () => _scanQRCode(abone),
+                      ),
+                      _buildActionButton(
+                        icon: Icons.swap_horiz,
+                        label: 'Sayaç Değiştir',
+                        color: Colors.brown.shade700,
+                        onTap: () => _changeMeter(abone),
                       ),
                     ],
                   ),
@@ -156,6 +168,32 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {bool isHighlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
+              fontSize: isHighlight ? 16 : 14,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: isHighlight ? 16 : 14,
+              color: isHighlight ? const Color(0xFF2E7D32) : Colors.black,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -191,71 +229,65 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
   }
 
   Future<void> _showEndeksDialog(AbonelerData abone) async {
-    final db = ref.read(dbProvider);
-    final lastEndeks = await db.getLastEndeks(abone.id);
-
-    if (!mounted) return;
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => _EndeksDialog(abone: abone, lastEndeks: lastEndeks),
+    // Navigate to full-page endeks entry
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => EndeksFormScreen(abone: abone)),
     );
 
-    // Eğer endeks kaydedildi ve tahakkuk oluşturma isteniyorsa
     if (result == true && mounted) {
-      await _showTahakkukDialogForAbone(abone);
+      // Refresh data
+      ref.invalidate(aboneDetailProvider(widget.aboneId));
+      ref.invalidate(aboneTahakkuklarProvider(widget.aboneId));
     }
   }
 
-  Future<void> _printReceipt(AbonelerData abone) async {
-    final db = ref.read(dbProvider);
-    final printerService = PrinterService();
+  Future<void> _changeMeter(AbonelerData abone) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SayacDegistirScreen(abone: abone),
+      ),
+    );
 
+    // Refresh after meter change
+    if (result == true && mounted) {
+      ref.invalidate(aboneDetailProvider(widget.aboneId));
+      ref.invalidate(aboneTahakkuklarProvider(widget.aboneId));
+    }
+  }
+
+  Future<void> _printTahakkuk(TahakkuklarData tahakkuk) async {
     try {
+      final db = ref.read(dbProvider);
+      final printerService = PrinterService();
+
       // Check printer connection
-      final isConnected = printerService.isConnected();
-      if (!isConnected) {
+      if (!printerService.isConnected()) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Yazıcı bağlı değil. Lütfen yazıcıyı bağlayın.'),
+            content: Text(
+              'Yazıcı bağlı değil. Lütfen ayarlardan yazıcıyı bağlayın.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
 
-      //printerService.printTestTicket();
-
-      // Get latest tahakkuk
-      final tahakkuklar = await db.getTahakkukByAbone(abone.id);
-      if (tahakkuklar.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Yazdırılacak tahakkuk bulunamadı'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
+      // Get abone info
+      final abone = await db.getAboneById(tahakkuk.aboneId);
+      if (abone == null) {
+        throw Exception('Abone bulunamadı');
       }
 
-      // Sort by date and get latest
-      tahakkuklar.sort((a, b) {
-        final aDate = DateTime.tryParse(a.olusturmaTarihi);
-        final bDate = DateTime.tryParse(b.olusturmaTarihi);
-        if (aDate == null || bDate == null) return 0;
-        return bDate.compareTo(aDate);
-      });
-      final tahakkuk = tahakkuklar.first;
-
-      // Get settings and donem
-      final ayarlar = await db.getSettings();
+      // Get donem
       final donem = await (db.select(
         db.donemler,
       )..where((t) => t.id.equals(tahakkuk.donemId))).getSingleOrNull();
 
-      // Calculate payments
+      // Get tahsilatlar
       final tahsilatlar = await db.getTahsilatByTahakkuk(tahakkuk.id);
       final toplamOdeme = tahsilatlar.fold<double>(
         0.0,
@@ -263,11 +295,14 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
       );
       final kalan = tahakkuk.tutar - toplamOdeme;
 
+      // Get settings
+      final ayarlar = await db.getSettings();
+
       // Print
       await printerService.printMakbuz(
         antetBaslik: ayarlar?.antetBaslik ?? 'SU TAKIP SISTEMI',
         antetAdres: ayarlar?.antetAdres ?? '',
-        altBilgi: ayarlar?.altBilgi ?? 'Tesekkur ederiz',
+        altBilgi: ayarlar?.altBilgi ?? 'Teşekkür ederiz',
         aboneAd: '${abone.ad}${abone.soyad != null ? ' ${abone.soyad}' : ''}',
         aboneNo: abone.aboneNo,
         donem: donem?.ad ?? '-',
@@ -279,6 +314,7 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
         odenen: toplamOdeme,
         kalan: kalan,
         tarih: DateFormat('dd/MM/yyyy').format(DateTime.now()),
+        tahakkukUuid: tahakkuk.uuid,
       );
 
       if (!mounted) return;
@@ -297,6 +333,183 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> _scanQRCode(AbonelerData abone) async {
+    try {
+      // Import image picker for camera
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+
+      if (image == null) return;
+
+      // Scan barcode with ML Kit
+      final InputImage inputImage = InputImage.fromFilePath(image.path);
+      final BarcodeScanner barcodeScanner = BarcodeScanner();
+      final List<Barcode> barcodes = await barcodeScanner.processImage(
+        inputImage,
+      );
+      await barcodeScanner.close();
+
+      if (barcodes.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('QR kod bulunamadı'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final uuid = barcodes.first.displayValue;
+      if (uuid == null || uuid.isEmpty) return;
+
+      final db = ref.read(dbProvider);
+      final tahakkuk = await db.getTahakkukByUuid(uuid);
+
+      if (tahakkuk == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tahakkuk bulunamadı'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Check if already paid
+      final kalan = await db.getKalanBakiye(tahakkuk.id);
+
+      if (kalan <= 0) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bu tahakkuk zaten ödenmiş'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        return;
+      }
+
+      // Show payment dialog
+      if (!mounted) return;
+
+      // Get donem and abone info
+      final donem = await db.getDonemById(tahakkuk.donemId);
+      final aboneInfo = await db.getAboneById(tahakkuk.aboneId);
+
+      final tutarController = TextEditingController(
+        text: kalan.toStringAsFixed(2),
+      );
+
+      final tutar = await showDialog<double>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Tahakkuk Bilgileri'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInfoRow('Abone', aboneInfo?.ad ?? '-'),
+                _buildInfoRow('Dönem', donem?.ad ?? '-'),
+                _buildInfoRow(
+                  'Tutar',
+                  '${tahakkuk.tutar.toStringAsFixed(2)} ₺',
+                ),
+                _buildInfoRow(
+                  'Kalan Borç',
+                  '${kalan.toStringAsFixed(2)} ₺',
+                  isHighlight: true,
+                ),
+                const Divider(height: 24),
+                TextField(
+                  controller: tutarController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Tahsil Edilecek Tutar',
+                    suffixText: '₺',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final t = double.tryParse(tutarController.text);
+                Navigator.pop(context, t);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E7D32),
+              ),
+              child: const Text('Tahsil Et'),
+            ),
+          ],
+        ),
+      );
+
+      if (tutar == null || tutar <= 0) return;
+
+      // Validate payment amount
+      if (tutar > kalan) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Tahsilat tutarı kalan borçtan (${kalan.toStringAsFixed(2)} ₺) büyük olamaz',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Process payment
+      await db.createTahsilat(
+        tahakkukId: tahakkuk.id,
+        tarih: DateTime.now().toIso8601String(),
+        tutar: tutar,
+        odemeTipi: 'Nakit',
+        aciklama: 'QR kod ile tahsilat',
+      );
+
+      // Update tahakkuk status
+      final yeniKalan = kalan - tutar;
+      final durum = yeniKalan <= 0 ? 'tamamlandi' : 'kismen_odendi';
+      await db.updateTahakkuk(
+        tahakkuk.id,
+        TahakkuklarCompanion(durum: Value(durum)),
+      );
+
+      if (mounted) {
+        ref.invalidate(aboneTahakkuklarProvider(widget.aboneId));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tahsilat başarılı: ${tutar.toStringAsFixed(2)} ₺'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -332,109 +545,6 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
       builder: (context) =>
           _TahsilatDialog(abone: abone, tahakkuklar: unpaidTahakkuklar),
     );
-  }
-
-  Future<void> _showTahakkukDialogForAbone(AbonelerData abone) async {
-    final db = ref.read(dbProvider);
-
-    // Varsayılan dönem seç
-    final ayarlar = await db.getSettings();
-    final donemler = await db.getDonemler();
-
-    if (donemler.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Dönem bulunamadı. Lütfen önce dönem oluşturun.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-
-    // Son 2 endeksi al
-    final endeksler = await db.getEndeksByAbone(abone.id);
-    if (endeksler.length < 2) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tahakkuk oluşturmak için en az 2 endeks gerekli.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-
-    endeksler.sort((a, b) => b.tarih.compareTo(a.tarih));
-    final sonEndeks = endeksler[0];
-    final ilkEndeks = endeksler[1];
-    final tuketim = sonEndeks.endeks - ilkEndeks.endeks;
-    final birimFiyat = ayarlar?.suM3Fiyat ?? 0.0;
-    final tutar = tuketim * birimFiyat;
-
-    if (!mounted) return;
-
-    final selectedDonem = await showDialog<DonemlerData>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Dönem Seç'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...donemler.map(
-              (d) => ListTile(
-                title: Text(d.ad),
-                subtitle: Text(
-                  '${DateFormat('dd/MM/yyyy').format(DateTime.parse(d.baslangicTarihi))} - '
-                  '${DateFormat('dd/MM/yyyy').format(DateTime.parse(d.bitisTarihi))}',
-                ),
-                onTap: () => Navigator.pop(c, d),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (selectedDonem == null || !mounted) return;
-
-    // Tahakkuk oluştur
-    try {
-      await db.createTahakkuk(
-        aboneId: abone.id,
-        donemId: selectedDonem.id,
-        ilkEndeks: ilkEndeks.endeks,
-        sonEndeks: sonEndeks.endeks,
-        tuketimM3: tuketim,
-        birimFiyat: birimFiyat,
-        tutar: tutar,
-        olusturmaTarihi: DateTime.now().toIso8601String(),
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Tahakkuk oluşturuldu: ${tutar.toStringAsFixed(2)} TL',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Provider'ı güncelle
-        ref.invalidate(aboneTahakkuklarProvider(abone.id));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Tahakkuk oluşturma hatası: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   Widget _buildAboneInfoCard(AbonelerData abone, AppDatabase db) {
@@ -705,6 +815,18 @@ class _AboneDetailScreenState extends ConsumerState<AboneDetailScreen> {
         leading: CircleAvatar(
           backgroundColor: durumColor.withOpacity(0.1),
           child: Icon(durumIcon, color: durumColor),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.print, size: 20),
+              onPressed: () => _printTahakkuk(tahakkuk),
+              tooltip: 'Makbuz Yazdır',
+              color: const Color(0xFF0F4C81),
+            ),
+            const Icon(Icons.expand_more),
+          ],
         ),
         title: Row(
           children: [
@@ -1030,6 +1152,27 @@ class _TahsilatDialogState extends ConsumerState<_TahsilatDialog> {
       final db = ref.read(dbProvider);
       final tutar = double.parse(_tutarController.text);
 
+      // Kalan borcu kontrol et
+      final kalan = await db.getKalanBakiye(_selectedTahakkukId!);
+
+      // Tahsilat tutarı kalan borçtan büyük olamaz
+      if (tutar > kalan) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Tahsilat tutarı kalan borçtan (${kalan.toStringAsFixed(2)} ₺) büyük olamaz',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       await db.createTahsilat(
         tahakkukId: _selectedTahakkukId!,
         tarih: DateTime.now().toIso8601String(),
@@ -1038,8 +1181,8 @@ class _TahsilatDialogState extends ConsumerState<_TahsilatDialog> {
       );
 
       // Tahakkuk durumunu güncelle
-      final kalan = await db.getKalanBakiye(_selectedTahakkukId!);
-      final durum = kalan <= 0 ? 'tamamlandi' : 'kismen_odendi';
+      final yeniKalan = await db.getKalanBakiye(_selectedTahakkukId!);
+      final durum = yeniKalan <= 0 ? 'tamamlandi' : 'kismen_odendi';
 
       await db.updateTahakkuk(
         _selectedTahakkukId!,
@@ -1054,228 +1197,6 @@ class _TahsilatDialogState extends ConsumerState<_TahsilatDialog> {
             backgroundColor: Colors.green,
           ),
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-}
-
-// Endeks Dialog
-class _EndeksDialog extends ConsumerStatefulWidget {
-  final AbonelerData abone;
-  final EndekslerData? lastEndeks;
-
-  const _EndeksDialog({required this.abone, this.lastEndeks});
-
-  @override
-  ConsumerState<_EndeksDialog> createState() => _EndeksDialogState();
-}
-
-class _EndeksDialogState extends ConsumerState<_EndeksDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _endeksController = TextEditingController();
-  final _aciklamaController = TextEditingController();
-  bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _endeksController.dispose();
-    _aciklamaController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          const Icon(Icons.speed, color: Color(0xFF0F4C81)),
-          const SizedBox(width: 8),
-          Text('Sayaç Oku - ${widget.abone.ad}'),
-        ],
-      ),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.lastEndeks != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Son Endeks:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        '${widget.lastEndeks!.endeks.toStringAsFixed(0)} m³',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F4C81),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              const Text(
-                'Yeni Endeks:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _endeksController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  suffixText: 'm³',
-                  hintText: '0',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Endeks giriniz';
-                  }
-                  final endeks = double.tryParse(value);
-                  if (endeks == null) {
-                    return 'Geçerli sayı giriniz';
-                  }
-                  if (widget.lastEndeks != null &&
-                      endeks < widget.lastEndeks!.endeks) {
-                    return 'Yeni endeks son endeksten küçük olamaz';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Açıklama (Opsiyonel):',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _aciklamaController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  hintText: 'Ör: Normal okuma',
-                ),
-                maxLines: 2,
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('İptal'),
-        ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _saveEndeks,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0F4C81),
-          ),
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Text('Kaydet'),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _saveEndeks() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final db = ref.read(dbProvider);
-      final endeks = double.parse(_endeksController.text);
-      final aciklama = _aciklamaController.text.trim();
-
-      await db.createEndeks(
-        aboneId: widget.abone.id,
-        tarih: DateTime.now().toIso8601String(),
-        endeks: endeks,
-        okuyanKisi: 'Muhtar',
-        aciklama: aciklama.isEmpty ? null : aciklama,
-      );
-
-      if (mounted) {
-        Navigator.pop(context, true);
-
-        // Tahakkuk oluşturma sorusu
-        final shouldCreateTahakkuk = await showDialog<bool>(
-          context: context,
-          builder: (c) => AlertDialog(
-            title: const Text('Tahakkuk Oluştur'),
-            content: const Text(
-              'Endeks kaydedildi. Tahakkuk oluşturmak ister misiniz?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: const Text('İptal'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(c, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
-                ),
-                child: const Text('Oluştur'),
-              ),
-            ],
-          ),
-        );
-
-        if (shouldCreateTahakkuk == true && mounted) {
-          // Bu kısım artık _showEndeksDialog'da hallediliyor
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Endeks başarıyla kaydedildi'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
       }
     } catch (e) {
       if (mounted) {

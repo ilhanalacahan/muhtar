@@ -21,6 +21,7 @@ class _DonemFormScreenState extends ConsumerState<DonemFormScreen> {
   DateTime? _bitisTarihi;
   DateTime? _sonOdemeTarihi;
   bool _isLoading = false;
+  bool _canEdit = true;
 
   @override
   void initState() {
@@ -33,6 +34,17 @@ class _DonemFormScreenState extends ConsumerState<DonemFormScreen> {
       if (widget.donem!.sonOdemeTarihi != null) {
         _sonOdemeTarihi = DateTime.tryParse(widget.donem!.sonOdemeTarihi!);
       }
+      _checkIfCanEdit();
+    }
+  }
+
+  Future<void> _checkIfCanEdit() async {
+    if (widget.donem != null) {
+      final db = ref.read(dbProvider);
+      final canEdit = await db.canDeleteOrEditDonem(widget.donem!.id);
+      setState(() {
+        _canEdit = canEdit;
+      });
     }
   }
 
@@ -86,6 +98,19 @@ class _DonemFormScreenState extends ConsumerState<DonemFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Başlangıç ve bitiş tarihleri seçilmelidir'),
+        ),
+      );
+      return;
+    }
+
+    // Düzenleme modunda ve tahakkuk varsa engelle
+    if (widget.donem != null && !_canEdit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bu döneme ait tahakkuklar bulunduğu için düzenlenemez',
+          ),
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -164,6 +189,29 @@ class _DonemFormScreenState extends ConsumerState<DonemFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Uyarı mesajı
+            if (widget.donem != null && !_canEdit)
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange.shade700),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Bu döneme ait tahakkuklar bulunduğu için dönem düzenlenemez.',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(

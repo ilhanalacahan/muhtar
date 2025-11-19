@@ -180,48 +180,351 @@ class _TahakkukListScreenState extends ConsumerState<TahakkukListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tahakkuklar')),
+      appBar: AppBar(title: const Text('Tahakkuklar'), elevation: 0),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _tahakkuklar.isEmpty
-          ? const Center(child: Text('Henüz tahakkuk oluşturulmamış'))
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.receipt_long_outlined,
+                    size: 80,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Henüz tahakkuk oluşturulmamış',
+                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            )
           : ListView.builder(
+              padding: const EdgeInsets.all(16),
               itemCount: _tahakkuklar.length,
               itemBuilder: (c, i) {
                 final t = _tahakkuklar[i];
                 final abone = _aboneler[t.aboneId];
                 final donem = _donemler[t.donemId];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                return _buildTahakkukCard(t, abone, donem);
+              },
+            ),
+    );
+  }
+
+  Widget _buildTahakkukCard(
+    TahakkuklarData tahakkuk,
+    AbonelerData? abone,
+    DonemlerData? donem,
+  ) {
+    final db = ref.read(dbProvider);
+
+    // Durum rengi ve ikonu
+    Color durumColor;
+    String durumText;
+    IconData durumIcon;
+
+    switch (tahakkuk.durum) {
+      case 'tamamlandi':
+        durumColor = Colors.green;
+        durumText = 'Ödendi';
+        durumIcon = Icons.check_circle;
+        break;
+      case 'kismen_odendi':
+        durumColor = Colors.orange;
+        durumText = 'Kısmi';
+        durumIcon = Icons.timelapse;
+        break;
+      default:
+        durumColor = Colors.red;
+        durumText = 'Ödenmedi';
+        durumIcon = Icons.pending;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: durumColor.withOpacity(0.3), width: 1.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          // Detay görüntüleme eklenebilir
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Üst kısım: Abone adı ve durum badge
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF0F4C81),
+                    child: Text(
+                      abone?.ad[0].toUpperCase() ?? 'A',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                  child: ListTile(
-                    title: Text(
-                      abone != null
-                          ? '${abone.ad} ${abone.soyad ?? ''}'
-                          : 'Abone #${t.aboneId}',
-                    ),
-                    subtitle: Text(
-                      'Dönem: ${donem?.ad ?? 'Bilinmeyen'}\nTutar: ${t.tutar.toStringAsFixed(2)} TL',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.payment, color: Colors.green),
-                          onPressed: () => _showTahsilatDialog(t),
+                        Text(
+                          abone != null
+                              ? '${abone.ad}${abone.soyad != null ? ' ${abone.soyad}' : ''}'
+                              : 'Abone #${tahakkuk.aboneId}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
+                          ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.print, color: Colors.blue),
-                          onPressed: () => _printMakbuz(t),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Abone No: ${abone?.aboneNo ?? '-'}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                );
-              },
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: durumColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: durumColor.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(durumIcon, size: 14, color: durumColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          durumText,
+                          style: TextStyle(
+                            color: durumColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              // Orta kısım: Dönem ve tüketim bilgileri
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoColumn(
+                      Icons.calendar_month,
+                      'Dönem',
+                      donem?.ad ?? 'Bilinmeyen',
+                      Colors.blue,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildInfoColumn(
+                      Icons.water_drop,
+                      'Tüketim',
+                      '${tahakkuk.tuketimM3?.toStringAsFixed(1) ?? '0'}',
+                      Colors.teal,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Alt kısım: Tutar bilgileri ve aksiyonlar
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Toplam Tutar',
+                          style: TextStyle(fontSize: 14, color: Colors.black54),
+                        ),
+                        Text(
+                          '${tahakkuk.tutar.toStringAsFixed(2)} ₺',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    FutureBuilder<double>(
+                      future: db.getKalanBakiye(tahakkuk.id),
+                      builder: (context, snapshot) {
+                        final kalan = snapshot.data ?? 0;
+                        final odenen = tahakkuk.tutar - kalan;
+
+                        return Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Ödenen',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                Text(
+                                  '${odenen.toStringAsFixed(2)} ₺',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Kalan',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                Text(
+                                  '${kalan.toStringAsFixed(2)} ₺',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: kalan > 0
+                                        ? Colors.red
+                                        : Colors.green,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Aksiyon butonları
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showTahsilatDialog(tahakkuk),
+                      icon: const Icon(Icons.payment, size: 18),
+                      label: const Text('Tahsilat'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.green,
+                        side: const BorderSide(color: Colors.green),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _printMakbuz(tahakkuk),
+                      icon: const Icon(Icons.print, size: 18),
+                      label: const Text('Yazdır'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F4C81),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoColumn(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
+          ),
+        ],
+      ),
     );
   }
 }

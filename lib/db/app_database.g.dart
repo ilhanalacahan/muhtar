@@ -1138,6 +1138,8 @@ class $AbonelerTable extends Aboneler
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
+    $customConstraints:
+        'CHECK (saat_durumu IN (\'normal\', \'ters\', \'arızalı\') OR saat_durumu IS NULL)',
   );
   static const VerificationMeta _adresMeta = const VerificationMeta('adres');
   @override
@@ -2119,6 +2121,16 @@ class $TahakkuklarTable extends Tahakkuklar
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
   static const VerificationMeta _aboneIdMeta = const VerificationMeta(
     'aboneId',
   );
@@ -2252,6 +2264,7 @@ class $TahakkuklarTable extends Tahakkuklar
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    uuid,
     aboneId,
     donemId,
     ilkEndeksId,
@@ -2278,6 +2291,12 @@ class $TahakkuklarTable extends Tahakkuklar
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
     }
     if (data.containsKey('abone_id')) {
       context.handle(
@@ -2377,6 +2396,10 @@ class $TahakkuklarTable extends Tahakkuklar
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      )!,
       aboneId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}abone_id'],
@@ -2432,6 +2455,7 @@ class $TahakkuklarTable extends Tahakkuklar
 
 class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
   final int id;
+  final String uuid;
   final int aboneId;
   final int donemId;
   final int? ilkEndeksId;
@@ -2445,6 +2469,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
   final String durum;
   const TahakkuklarData({
     required this.id,
+    required this.uuid,
     required this.aboneId,
     required this.donemId,
     this.ilkEndeksId,
@@ -2461,6 +2486,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    map['uuid'] = Variable<String>(uuid);
     map['abone_id'] = Variable<int>(aboneId);
     map['donem_id'] = Variable<int>(donemId);
     if (!nullToAbsent || ilkEndeksId != null) {
@@ -2488,6 +2514,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
   TahakkuklarCompanion toCompanion(bool nullToAbsent) {
     return TahakkuklarCompanion(
       id: Value(id),
+      uuid: Value(uuid),
       aboneId: Value(aboneId),
       donemId: Value(donemId),
       ilkEndeksId: ilkEndeksId == null && nullToAbsent
@@ -2519,6 +2546,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return TahakkuklarData(
       id: serializer.fromJson<int>(json['id']),
+      uuid: serializer.fromJson<String>(json['uuid']),
       aboneId: serializer.fromJson<int>(json['aboneId']),
       donemId: serializer.fromJson<int>(json['donemId']),
       ilkEndeksId: serializer.fromJson<int?>(json['ilkEndeksId']),
@@ -2537,6 +2565,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'uuid': serializer.toJson<String>(uuid),
       'aboneId': serializer.toJson<int>(aboneId),
       'donemId': serializer.toJson<int>(donemId),
       'ilkEndeksId': serializer.toJson<int?>(ilkEndeksId),
@@ -2553,6 +2582,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
 
   TahakkuklarData copyWith({
     int? id,
+    String? uuid,
     int? aboneId,
     int? donemId,
     Value<int?> ilkEndeksId = const Value.absent(),
@@ -2566,6 +2596,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
     String? durum,
   }) => TahakkuklarData(
     id: id ?? this.id,
+    uuid: uuid ?? this.uuid,
     aboneId: aboneId ?? this.aboneId,
     donemId: donemId ?? this.donemId,
     ilkEndeksId: ilkEndeksId.present ? ilkEndeksId.value : this.ilkEndeksId,
@@ -2581,6 +2612,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
   TahakkuklarData copyWithCompanion(TahakkuklarCompanion data) {
     return TahakkuklarData(
       id: data.id.present ? data.id.value : this.id,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
       aboneId: data.aboneId.present ? data.aboneId.value : this.aboneId,
       donemId: data.donemId.present ? data.donemId.value : this.donemId,
       ilkEndeksId: data.ilkEndeksId.present
@@ -2607,6 +2639,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
   String toString() {
     return (StringBuffer('TahakkuklarData(')
           ..write('id: $id, ')
+          ..write('uuid: $uuid, ')
           ..write('aboneId: $aboneId, ')
           ..write('donemId: $donemId, ')
           ..write('ilkEndeksId: $ilkEndeksId, ')
@@ -2625,6 +2658,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
   @override
   int get hashCode => Object.hash(
     id,
+    uuid,
     aboneId,
     donemId,
     ilkEndeksId,
@@ -2642,6 +2676,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
       identical(this, other) ||
       (other is TahakkuklarData &&
           other.id == this.id &&
+          other.uuid == this.uuid &&
           other.aboneId == this.aboneId &&
           other.donemId == this.donemId &&
           other.ilkEndeksId == this.ilkEndeksId &&
@@ -2657,6 +2692,7 @@ class TahakkuklarData extends DataClass implements Insertable<TahakkuklarData> {
 
 class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
   final Value<int> id;
+  final Value<String> uuid;
   final Value<int> aboneId;
   final Value<int> donemId;
   final Value<int?> ilkEndeksId;
@@ -2670,6 +2706,7 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
   final Value<String> durum;
   const TahakkuklarCompanion({
     this.id = const Value.absent(),
+    this.uuid = const Value.absent(),
     this.aboneId = const Value.absent(),
     this.donemId = const Value.absent(),
     this.ilkEndeksId = const Value.absent(),
@@ -2684,6 +2721,7 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
   });
   TahakkuklarCompanion.insert({
     this.id = const Value.absent(),
+    this.uuid = const Value.absent(),
     required int aboneId,
     required int donemId,
     this.ilkEndeksId = const Value.absent(),
@@ -2702,6 +2740,7 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
        olusturmaTarihi = Value(olusturmaTarihi);
   static Insertable<TahakkuklarData> custom({
     Expression<int>? id,
+    Expression<String>? uuid,
     Expression<int>? aboneId,
     Expression<int>? donemId,
     Expression<int>? ilkEndeksId,
@@ -2716,6 +2755,7 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (uuid != null) 'uuid': uuid,
       if (aboneId != null) 'abone_id': aboneId,
       if (donemId != null) 'donem_id': donemId,
       if (ilkEndeksId != null) 'ilk_endeks_id': ilkEndeksId,
@@ -2732,6 +2772,7 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
 
   TahakkuklarCompanion copyWith({
     Value<int>? id,
+    Value<String>? uuid,
     Value<int>? aboneId,
     Value<int>? donemId,
     Value<int?>? ilkEndeksId,
@@ -2746,6 +2787,7 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
   }) {
     return TahakkuklarCompanion(
       id: id ?? this.id,
+      uuid: uuid ?? this.uuid,
       aboneId: aboneId ?? this.aboneId,
       donemId: donemId ?? this.donemId,
       ilkEndeksId: ilkEndeksId ?? this.ilkEndeksId,
@@ -2765,6 +2807,9 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
     }
     if (aboneId.present) {
       map['abone_id'] = Variable<int>(aboneId.value);
@@ -2806,6 +2851,7 @@ class TahakkuklarCompanion extends UpdateCompanion<TahakkuklarData> {
   String toString() {
     return (StringBuffer('TahakkuklarCompanion(')
           ..write('id: $id, ')
+          ..write('uuid: $uuid, ')
           ..write('aboneId: $aboneId, ')
           ..write('donemId: $donemId, ')
           ..write('ilkEndeksId: $ilkEndeksId, ')
@@ -3225,6 +3271,576 @@ class TahsilatlarCompanion extends UpdateCompanion<TahsilatlarData> {
   }
 }
 
+class $SayaclarTable extends Sayaclar
+    with TableInfo<$SayaclarTable, SayaclarData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SayaclarTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _aboneIdMeta = const VerificationMeta(
+    'aboneId',
+  );
+  @override
+  late final GeneratedColumn<int> aboneId = GeneratedColumn<int>(
+    'abone_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES aboneler (id)',
+    ),
+  );
+  static const VerificationMeta _saatNoMeta = const VerificationMeta('saatNo');
+  @override
+  late final GeneratedColumn<String> saatNo = GeneratedColumn<String>(
+    'saat_no',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baslangicEndeksMeta = const VerificationMeta(
+    'baslangicEndeks',
+  );
+  @override
+  late final GeneratedColumn<double> baslangicEndeks = GeneratedColumn<double>(
+    'baslangic_endeks',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baslangicTarihiMeta = const VerificationMeta(
+    'baslangicTarihi',
+  );
+  @override
+  late final GeneratedColumn<String> baslangicTarihi = GeneratedColumn<String>(
+    'baslangic_tarihi',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bitisEndeksMeta = const VerificationMeta(
+    'bitisEndeks',
+  );
+  @override
+  late final GeneratedColumn<double> bitisEndeks = GeneratedColumn<double>(
+    'bitis_endeks',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bitisTarihiMeta = const VerificationMeta(
+    'bitisTarihi',
+  );
+  @override
+  late final GeneratedColumn<String> bitisTarihi = GeneratedColumn<String>(
+    'bitis_tarihi',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aktifMeta = const VerificationMeta('aktif');
+  @override
+  late final GeneratedColumn<int> aktif = GeneratedColumn<int>(
+    'aktif',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _aciklamaMeta = const VerificationMeta(
+    'aciklama',
+  );
+  @override
+  late final GeneratedColumn<String> aciklama = GeneratedColumn<String>(
+    'aciklama',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    aboneId,
+    saatNo,
+    baslangicEndeks,
+    baslangicTarihi,
+    bitisEndeks,
+    bitisTarihi,
+    aktif,
+    aciklama,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sayaclar';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SayaclarData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('abone_id')) {
+      context.handle(
+        _aboneIdMeta,
+        aboneId.isAcceptableOrUnknown(data['abone_id']!, _aboneIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_aboneIdMeta);
+    }
+    if (data.containsKey('saat_no')) {
+      context.handle(
+        _saatNoMeta,
+        saatNo.isAcceptableOrUnknown(data['saat_no']!, _saatNoMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_saatNoMeta);
+    }
+    if (data.containsKey('baslangic_endeks')) {
+      context.handle(
+        _baslangicEndeksMeta,
+        baslangicEndeks.isAcceptableOrUnknown(
+          data['baslangic_endeks']!,
+          _baslangicEndeksMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_baslangicEndeksMeta);
+    }
+    if (data.containsKey('baslangic_tarihi')) {
+      context.handle(
+        _baslangicTarihiMeta,
+        baslangicTarihi.isAcceptableOrUnknown(
+          data['baslangic_tarihi']!,
+          _baslangicTarihiMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_baslangicTarihiMeta);
+    }
+    if (data.containsKey('bitis_endeks')) {
+      context.handle(
+        _bitisEndeksMeta,
+        bitisEndeks.isAcceptableOrUnknown(
+          data['bitis_endeks']!,
+          _bitisEndeksMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bitis_tarihi')) {
+      context.handle(
+        _bitisTarihiMeta,
+        bitisTarihi.isAcceptableOrUnknown(
+          data['bitis_tarihi']!,
+          _bitisTarihiMeta,
+        ),
+      );
+    }
+    if (data.containsKey('aktif')) {
+      context.handle(
+        _aktifMeta,
+        aktif.isAcceptableOrUnknown(data['aktif']!, _aktifMeta),
+      );
+    }
+    if (data.containsKey('aciklama')) {
+      context.handle(
+        _aciklamaMeta,
+        aciklama.isAcceptableOrUnknown(data['aciklama']!, _aciklamaMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SayaclarData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SayaclarData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      aboneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}abone_id'],
+      )!,
+      saatNo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}saat_no'],
+      )!,
+      baslangicEndeks: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}baslangic_endeks'],
+      )!,
+      baslangicTarihi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}baslangic_tarihi'],
+      )!,
+      bitisEndeks: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}bitis_endeks'],
+      ),
+      bitisTarihi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bitis_tarihi'],
+      ),
+      aktif: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}aktif'],
+      )!,
+      aciklama: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}aciklama'],
+      ),
+    );
+  }
+
+  @override
+  $SayaclarTable createAlias(String alias) {
+    return $SayaclarTable(attachedDatabase, alias);
+  }
+}
+
+class SayaclarData extends DataClass implements Insertable<SayaclarData> {
+  final int id;
+  final int aboneId;
+  final String saatNo;
+  final double baslangicEndeks;
+  final String baslangicTarihi;
+  final double? bitisEndeks;
+  final String? bitisTarihi;
+  final int aktif;
+  final String? aciklama;
+  const SayaclarData({
+    required this.id,
+    required this.aboneId,
+    required this.saatNo,
+    required this.baslangicEndeks,
+    required this.baslangicTarihi,
+    this.bitisEndeks,
+    this.bitisTarihi,
+    required this.aktif,
+    this.aciklama,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['abone_id'] = Variable<int>(aboneId);
+    map['saat_no'] = Variable<String>(saatNo);
+    map['baslangic_endeks'] = Variable<double>(baslangicEndeks);
+    map['baslangic_tarihi'] = Variable<String>(baslangicTarihi);
+    if (!nullToAbsent || bitisEndeks != null) {
+      map['bitis_endeks'] = Variable<double>(bitisEndeks);
+    }
+    if (!nullToAbsent || bitisTarihi != null) {
+      map['bitis_tarihi'] = Variable<String>(bitisTarihi);
+    }
+    map['aktif'] = Variable<int>(aktif);
+    if (!nullToAbsent || aciklama != null) {
+      map['aciklama'] = Variable<String>(aciklama);
+    }
+    return map;
+  }
+
+  SayaclarCompanion toCompanion(bool nullToAbsent) {
+    return SayaclarCompanion(
+      id: Value(id),
+      aboneId: Value(aboneId),
+      saatNo: Value(saatNo),
+      baslangicEndeks: Value(baslangicEndeks),
+      baslangicTarihi: Value(baslangicTarihi),
+      bitisEndeks: bitisEndeks == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bitisEndeks),
+      bitisTarihi: bitisTarihi == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bitisTarihi),
+      aktif: Value(aktif),
+      aciklama: aciklama == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aciklama),
+    );
+  }
+
+  factory SayaclarData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SayaclarData(
+      id: serializer.fromJson<int>(json['id']),
+      aboneId: serializer.fromJson<int>(json['aboneId']),
+      saatNo: serializer.fromJson<String>(json['saatNo']),
+      baslangicEndeks: serializer.fromJson<double>(json['baslangicEndeks']),
+      baslangicTarihi: serializer.fromJson<String>(json['baslangicTarihi']),
+      bitisEndeks: serializer.fromJson<double?>(json['bitisEndeks']),
+      bitisTarihi: serializer.fromJson<String?>(json['bitisTarihi']),
+      aktif: serializer.fromJson<int>(json['aktif']),
+      aciklama: serializer.fromJson<String?>(json['aciklama']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'aboneId': serializer.toJson<int>(aboneId),
+      'saatNo': serializer.toJson<String>(saatNo),
+      'baslangicEndeks': serializer.toJson<double>(baslangicEndeks),
+      'baslangicTarihi': serializer.toJson<String>(baslangicTarihi),
+      'bitisEndeks': serializer.toJson<double?>(bitisEndeks),
+      'bitisTarihi': serializer.toJson<String?>(bitisTarihi),
+      'aktif': serializer.toJson<int>(aktif),
+      'aciklama': serializer.toJson<String?>(aciklama),
+    };
+  }
+
+  SayaclarData copyWith({
+    int? id,
+    int? aboneId,
+    String? saatNo,
+    double? baslangicEndeks,
+    String? baslangicTarihi,
+    Value<double?> bitisEndeks = const Value.absent(),
+    Value<String?> bitisTarihi = const Value.absent(),
+    int? aktif,
+    Value<String?> aciklama = const Value.absent(),
+  }) => SayaclarData(
+    id: id ?? this.id,
+    aboneId: aboneId ?? this.aboneId,
+    saatNo: saatNo ?? this.saatNo,
+    baslangicEndeks: baslangicEndeks ?? this.baslangicEndeks,
+    baslangicTarihi: baslangicTarihi ?? this.baslangicTarihi,
+    bitisEndeks: bitisEndeks.present ? bitisEndeks.value : this.bitisEndeks,
+    bitisTarihi: bitisTarihi.present ? bitisTarihi.value : this.bitisTarihi,
+    aktif: aktif ?? this.aktif,
+    aciklama: aciklama.present ? aciklama.value : this.aciklama,
+  );
+  SayaclarData copyWithCompanion(SayaclarCompanion data) {
+    return SayaclarData(
+      id: data.id.present ? data.id.value : this.id,
+      aboneId: data.aboneId.present ? data.aboneId.value : this.aboneId,
+      saatNo: data.saatNo.present ? data.saatNo.value : this.saatNo,
+      baslangicEndeks: data.baslangicEndeks.present
+          ? data.baslangicEndeks.value
+          : this.baslangicEndeks,
+      baslangicTarihi: data.baslangicTarihi.present
+          ? data.baslangicTarihi.value
+          : this.baslangicTarihi,
+      bitisEndeks: data.bitisEndeks.present
+          ? data.bitisEndeks.value
+          : this.bitisEndeks,
+      bitisTarihi: data.bitisTarihi.present
+          ? data.bitisTarihi.value
+          : this.bitisTarihi,
+      aktif: data.aktif.present ? data.aktif.value : this.aktif,
+      aciklama: data.aciklama.present ? data.aciklama.value : this.aciklama,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SayaclarData(')
+          ..write('id: $id, ')
+          ..write('aboneId: $aboneId, ')
+          ..write('saatNo: $saatNo, ')
+          ..write('baslangicEndeks: $baslangicEndeks, ')
+          ..write('baslangicTarihi: $baslangicTarihi, ')
+          ..write('bitisEndeks: $bitisEndeks, ')
+          ..write('bitisTarihi: $bitisTarihi, ')
+          ..write('aktif: $aktif, ')
+          ..write('aciklama: $aciklama')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    aboneId,
+    saatNo,
+    baslangicEndeks,
+    baslangicTarihi,
+    bitisEndeks,
+    bitisTarihi,
+    aktif,
+    aciklama,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SayaclarData &&
+          other.id == this.id &&
+          other.aboneId == this.aboneId &&
+          other.saatNo == this.saatNo &&
+          other.baslangicEndeks == this.baslangicEndeks &&
+          other.baslangicTarihi == this.baslangicTarihi &&
+          other.bitisEndeks == this.bitisEndeks &&
+          other.bitisTarihi == this.bitisTarihi &&
+          other.aktif == this.aktif &&
+          other.aciklama == this.aciklama);
+}
+
+class SayaclarCompanion extends UpdateCompanion<SayaclarData> {
+  final Value<int> id;
+  final Value<int> aboneId;
+  final Value<String> saatNo;
+  final Value<double> baslangicEndeks;
+  final Value<String> baslangicTarihi;
+  final Value<double?> bitisEndeks;
+  final Value<String?> bitisTarihi;
+  final Value<int> aktif;
+  final Value<String?> aciklama;
+  const SayaclarCompanion({
+    this.id = const Value.absent(),
+    this.aboneId = const Value.absent(),
+    this.saatNo = const Value.absent(),
+    this.baslangicEndeks = const Value.absent(),
+    this.baslangicTarihi = const Value.absent(),
+    this.bitisEndeks = const Value.absent(),
+    this.bitisTarihi = const Value.absent(),
+    this.aktif = const Value.absent(),
+    this.aciklama = const Value.absent(),
+  });
+  SayaclarCompanion.insert({
+    this.id = const Value.absent(),
+    required int aboneId,
+    required String saatNo,
+    required double baslangicEndeks,
+    required String baslangicTarihi,
+    this.bitisEndeks = const Value.absent(),
+    this.bitisTarihi = const Value.absent(),
+    this.aktif = const Value.absent(),
+    this.aciklama = const Value.absent(),
+  }) : aboneId = Value(aboneId),
+       saatNo = Value(saatNo),
+       baslangicEndeks = Value(baslangicEndeks),
+       baslangicTarihi = Value(baslangicTarihi);
+  static Insertable<SayaclarData> custom({
+    Expression<int>? id,
+    Expression<int>? aboneId,
+    Expression<String>? saatNo,
+    Expression<double>? baslangicEndeks,
+    Expression<String>? baslangicTarihi,
+    Expression<double>? bitisEndeks,
+    Expression<String>? bitisTarihi,
+    Expression<int>? aktif,
+    Expression<String>? aciklama,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (aboneId != null) 'abone_id': aboneId,
+      if (saatNo != null) 'saat_no': saatNo,
+      if (baslangicEndeks != null) 'baslangic_endeks': baslangicEndeks,
+      if (baslangicTarihi != null) 'baslangic_tarihi': baslangicTarihi,
+      if (bitisEndeks != null) 'bitis_endeks': bitisEndeks,
+      if (bitisTarihi != null) 'bitis_tarihi': bitisTarihi,
+      if (aktif != null) 'aktif': aktif,
+      if (aciklama != null) 'aciklama': aciklama,
+    });
+  }
+
+  SayaclarCompanion copyWith({
+    Value<int>? id,
+    Value<int>? aboneId,
+    Value<String>? saatNo,
+    Value<double>? baslangicEndeks,
+    Value<String>? baslangicTarihi,
+    Value<double?>? bitisEndeks,
+    Value<String?>? bitisTarihi,
+    Value<int>? aktif,
+    Value<String?>? aciklama,
+  }) {
+    return SayaclarCompanion(
+      id: id ?? this.id,
+      aboneId: aboneId ?? this.aboneId,
+      saatNo: saatNo ?? this.saatNo,
+      baslangicEndeks: baslangicEndeks ?? this.baslangicEndeks,
+      baslangicTarihi: baslangicTarihi ?? this.baslangicTarihi,
+      bitisEndeks: bitisEndeks ?? this.bitisEndeks,
+      bitisTarihi: bitisTarihi ?? this.bitisTarihi,
+      aktif: aktif ?? this.aktif,
+      aciklama: aciklama ?? this.aciklama,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (aboneId.present) {
+      map['abone_id'] = Variable<int>(aboneId.value);
+    }
+    if (saatNo.present) {
+      map['saat_no'] = Variable<String>(saatNo.value);
+    }
+    if (baslangicEndeks.present) {
+      map['baslangic_endeks'] = Variable<double>(baslangicEndeks.value);
+    }
+    if (baslangicTarihi.present) {
+      map['baslangic_tarihi'] = Variable<String>(baslangicTarihi.value);
+    }
+    if (bitisEndeks.present) {
+      map['bitis_endeks'] = Variable<double>(bitisEndeks.value);
+    }
+    if (bitisTarihi.present) {
+      map['bitis_tarihi'] = Variable<String>(bitisTarihi.value);
+    }
+    if (aktif.present) {
+      map['aktif'] = Variable<int>(aktif.value);
+    }
+    if (aciklama.present) {
+      map['aciklama'] = Variable<String>(aciklama.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SayaclarCompanion(')
+          ..write('id: $id, ')
+          ..write('aboneId: $aboneId, ')
+          ..write('saatNo: $saatNo, ')
+          ..write('baslangicEndeks: $baslangicEndeks, ')
+          ..write('baslangicTarihi: $baslangicTarihi, ')
+          ..write('bitisEndeks: $bitisEndeks, ')
+          ..write('bitisTarihi: $bitisTarihi, ')
+          ..write('aktif: $aktif, ')
+          ..write('aciklama: $aciklama')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3234,6 +3850,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $EndekslerTable endeksler = $EndekslerTable(this);
   late final $TahakkuklarTable tahakkuklar = $TahakkuklarTable(this);
   late final $TahsilatlarTable tahsilatlar = $TahsilatlarTable(this);
+  late final $SayaclarTable sayaclar = $SayaclarTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3245,6 +3862,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     endeksler,
     tahakkuklar,
     tahsilatlar,
+    sayaclar,
   ];
 }
 
@@ -3933,6 +4551,24 @@ final class $$AbonelerTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SayaclarTable, List<SayaclarData>>
+  _sayaclarRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.sayaclar,
+    aliasName: $_aliasNameGenerator(db.aboneler.id, db.sayaclar.aboneId),
+  );
+
+  $$SayaclarTableProcessedTableManager get sayaclarRefs {
+    final manager = $$SayaclarTableTableManager(
+      $_db,
+      $_db.sayaclar,
+    ).filter((f) => f.aboneId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_sayaclarRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$AbonelerTableFilterComposer
@@ -4035,6 +4671,31 @@ class $$AbonelerTableFilterComposer
           }) => $$TahakkuklarTableFilterComposer(
             $db: $db,
             $table: $db.tahakkuklar,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> sayaclarRefs(
+    Expression<bool> Function($$SayaclarTableFilterComposer f) f,
+  ) {
+    final $$SayaclarTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sayaclar,
+      getReferencedColumn: (t) => t.aboneId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SayaclarTableFilterComposer(
+            $db: $db,
+            $table: $db.sayaclar,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4195,6 +4856,31 @@ class $$AbonelerTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> sayaclarRefs<T extends Object>(
+    Expression<T> Function($$SayaclarTableAnnotationComposer a) f,
+  ) {
+    final $$SayaclarTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sayaclar,
+      getReferencedColumn: (t) => t.aboneId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SayaclarTableAnnotationComposer(
+            $db: $db,
+            $table: $db.sayaclar,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$AbonelerTableTableManager
@@ -4210,7 +4896,11 @@ class $$AbonelerTableTableManager
           $$AbonelerTableUpdateCompanionBuilder,
           (AbonelerData, $$AbonelerTableReferences),
           AbonelerData,
-          PrefetchHooks Function({bool endekslerRefs, bool tahakkuklarRefs})
+          PrefetchHooks Function({
+            bool endekslerRefs,
+            bool tahakkuklarRefs,
+            bool sayaclarRefs,
+          })
         > {
   $$AbonelerTableTableManager(_$AppDatabase db, $AbonelerTable table)
     : super(
@@ -4280,12 +4970,17 @@ class $$AbonelerTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({endekslerRefs = false, tahakkuklarRefs = false}) {
+              ({
+                endekslerRefs = false,
+                tahakkuklarRefs = false,
+                sayaclarRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (endekslerRefs) db.endeksler,
                     if (tahakkuklarRefs) db.tahakkuklar,
+                    if (sayaclarRefs) db.sayaclar,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -4332,6 +5027,27 @@ class $$AbonelerTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (sayaclarRefs)
+                        await $_getPrefetchedData<
+                          AbonelerData,
+                          $AbonelerTable,
+                          SayaclarData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AbonelerTableReferences
+                              ._sayaclarRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AbonelerTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).sayaclarRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.aboneId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -4352,7 +5068,11 @@ typedef $$AbonelerTableProcessedTableManager =
       $$AbonelerTableUpdateCompanionBuilder,
       (AbonelerData, $$AbonelerTableReferences),
       AbonelerData,
-      PrefetchHooks Function({bool endekslerRefs, bool tahakkuklarRefs})
+      PrefetchHooks Function({
+        bool endekslerRefs,
+        bool tahakkuklarRefs,
+        bool sayaclarRefs,
+      })
     >;
 typedef $$EndekslerTableCreateCompanionBuilder =
     EndekslerCompanion Function({
@@ -4708,6 +5428,7 @@ typedef $$EndekslerTableProcessedTableManager =
 typedef $$TahakkuklarTableCreateCompanionBuilder =
     TahakkuklarCompanion Function({
       Value<int> id,
+      Value<String> uuid,
       required int aboneId,
       required int donemId,
       Value<int?> ilkEndeksId,
@@ -4723,6 +5444,7 @@ typedef $$TahakkuklarTableCreateCompanionBuilder =
 typedef $$TahakkuklarTableUpdateCompanionBuilder =
     TahakkuklarCompanion Function({
       Value<int> id,
+      Value<String> uuid,
       Value<int> aboneId,
       Value<int> donemId,
       Value<int?> ilkEndeksId,
@@ -4849,6 +5571,11 @@ class $$TahakkuklarTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5019,6 +5746,11 @@ class $$TahakkuklarTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get ilkEndeks => $composableBuilder(
     column: $table.ilkEndeks,
     builder: (column) => ColumnOrderings(column),
@@ -5158,6 +5890,9 @@ class $$TahakkuklarTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
 
   GeneratedColumn<double> get ilkEndeks =>
       $composableBuilder(column: $table.ilkEndeks, builder: (column) => column);
@@ -5337,6 +6072,7 @@ class $$TahakkuklarTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<String> uuid = const Value.absent(),
                 Value<int> aboneId = const Value.absent(),
                 Value<int> donemId = const Value.absent(),
                 Value<int?> ilkEndeksId = const Value.absent(),
@@ -5350,6 +6086,7 @@ class $$TahakkuklarTableTableManager
                 Value<String> durum = const Value.absent(),
               }) => TahakkuklarCompanion(
                 id: id,
+                uuid: uuid,
                 aboneId: aboneId,
                 donemId: donemId,
                 ilkEndeksId: ilkEndeksId,
@@ -5365,6 +6102,7 @@ class $$TahakkuklarTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<String> uuid = const Value.absent(),
                 required int aboneId,
                 required int donemId,
                 Value<int?> ilkEndeksId = const Value.absent(),
@@ -5378,6 +6116,7 @@ class $$TahakkuklarTableTableManager
                 Value<String> durum = const Value.absent(),
               }) => TahakkuklarCompanion.insert(
                 id: id,
+                uuid: uuid,
                 aboneId: aboneId,
                 donemId: donemId,
                 ilkEndeksId: ilkEndeksId,
@@ -5873,6 +6612,401 @@ typedef $$TahsilatlarTableProcessedTableManager =
       TahsilatlarData,
       PrefetchHooks Function({bool tahakkukId})
     >;
+typedef $$SayaclarTableCreateCompanionBuilder =
+    SayaclarCompanion Function({
+      Value<int> id,
+      required int aboneId,
+      required String saatNo,
+      required double baslangicEndeks,
+      required String baslangicTarihi,
+      Value<double?> bitisEndeks,
+      Value<String?> bitisTarihi,
+      Value<int> aktif,
+      Value<String?> aciklama,
+    });
+typedef $$SayaclarTableUpdateCompanionBuilder =
+    SayaclarCompanion Function({
+      Value<int> id,
+      Value<int> aboneId,
+      Value<String> saatNo,
+      Value<double> baslangicEndeks,
+      Value<String> baslangicTarihi,
+      Value<double?> bitisEndeks,
+      Value<String?> bitisTarihi,
+      Value<int> aktif,
+      Value<String?> aciklama,
+    });
+
+final class $$SayaclarTableReferences
+    extends BaseReferences<_$AppDatabase, $SayaclarTable, SayaclarData> {
+  $$SayaclarTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $AbonelerTable _aboneIdTable(_$AppDatabase db) => db.aboneler
+      .createAlias($_aliasNameGenerator(db.sayaclar.aboneId, db.aboneler.id));
+
+  $$AbonelerTableProcessedTableManager get aboneId {
+    final $_column = $_itemColumn<int>('abone_id')!;
+
+    final manager = $$AbonelerTableTableManager(
+      $_db,
+      $_db.aboneler,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_aboneIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SayaclarTableFilterComposer
+    extends Composer<_$AppDatabase, $SayaclarTable> {
+  $$SayaclarTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get saatNo => $composableBuilder(
+    column: $table.saatNo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get baslangicEndeks => $composableBuilder(
+    column: $table.baslangicEndeks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baslangicTarihi => $composableBuilder(
+    column: $table.baslangicTarihi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get bitisEndeks => $composableBuilder(
+    column: $table.bitisEndeks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bitisTarihi => $composableBuilder(
+    column: $table.bitisTarihi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get aktif => $composableBuilder(
+    column: $table.aktif,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aciklama => $composableBuilder(
+    column: $table.aciklama,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AbonelerTableFilterComposer get aboneId {
+    final $$AbonelerTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.aboneId,
+      referencedTable: $db.aboneler,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AbonelerTableFilterComposer(
+            $db: $db,
+            $table: $db.aboneler,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SayaclarTableOrderingComposer
+    extends Composer<_$AppDatabase, $SayaclarTable> {
+  $$SayaclarTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get saatNo => $composableBuilder(
+    column: $table.saatNo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get baslangicEndeks => $composableBuilder(
+    column: $table.baslangicEndeks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baslangicTarihi => $composableBuilder(
+    column: $table.baslangicTarihi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get bitisEndeks => $composableBuilder(
+    column: $table.bitisEndeks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bitisTarihi => $composableBuilder(
+    column: $table.bitisTarihi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get aktif => $composableBuilder(
+    column: $table.aktif,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aciklama => $composableBuilder(
+    column: $table.aciklama,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AbonelerTableOrderingComposer get aboneId {
+    final $$AbonelerTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.aboneId,
+      referencedTable: $db.aboneler,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AbonelerTableOrderingComposer(
+            $db: $db,
+            $table: $db.aboneler,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SayaclarTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SayaclarTable> {
+  $$SayaclarTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get saatNo =>
+      $composableBuilder(column: $table.saatNo, builder: (column) => column);
+
+  GeneratedColumn<double> get baslangicEndeks => $composableBuilder(
+    column: $table.baslangicEndeks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get baslangicTarihi => $composableBuilder(
+    column: $table.baslangicTarihi,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get bitisEndeks => $composableBuilder(
+    column: $table.bitisEndeks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get bitisTarihi => $composableBuilder(
+    column: $table.bitisTarihi,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get aktif =>
+      $composableBuilder(column: $table.aktif, builder: (column) => column);
+
+  GeneratedColumn<String> get aciklama =>
+      $composableBuilder(column: $table.aciklama, builder: (column) => column);
+
+  $$AbonelerTableAnnotationComposer get aboneId {
+    final $$AbonelerTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.aboneId,
+      referencedTable: $db.aboneler,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AbonelerTableAnnotationComposer(
+            $db: $db,
+            $table: $db.aboneler,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SayaclarTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SayaclarTable,
+          SayaclarData,
+          $$SayaclarTableFilterComposer,
+          $$SayaclarTableOrderingComposer,
+          $$SayaclarTableAnnotationComposer,
+          $$SayaclarTableCreateCompanionBuilder,
+          $$SayaclarTableUpdateCompanionBuilder,
+          (SayaclarData, $$SayaclarTableReferences),
+          SayaclarData,
+          PrefetchHooks Function({bool aboneId})
+        > {
+  $$SayaclarTableTableManager(_$AppDatabase db, $SayaclarTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SayaclarTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SayaclarTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SayaclarTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> aboneId = const Value.absent(),
+                Value<String> saatNo = const Value.absent(),
+                Value<double> baslangicEndeks = const Value.absent(),
+                Value<String> baslangicTarihi = const Value.absent(),
+                Value<double?> bitisEndeks = const Value.absent(),
+                Value<String?> bitisTarihi = const Value.absent(),
+                Value<int> aktif = const Value.absent(),
+                Value<String?> aciklama = const Value.absent(),
+              }) => SayaclarCompanion(
+                id: id,
+                aboneId: aboneId,
+                saatNo: saatNo,
+                baslangicEndeks: baslangicEndeks,
+                baslangicTarihi: baslangicTarihi,
+                bitisEndeks: bitisEndeks,
+                bitisTarihi: bitisTarihi,
+                aktif: aktif,
+                aciklama: aciklama,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int aboneId,
+                required String saatNo,
+                required double baslangicEndeks,
+                required String baslangicTarihi,
+                Value<double?> bitisEndeks = const Value.absent(),
+                Value<String?> bitisTarihi = const Value.absent(),
+                Value<int> aktif = const Value.absent(),
+                Value<String?> aciklama = const Value.absent(),
+              }) => SayaclarCompanion.insert(
+                id: id,
+                aboneId: aboneId,
+                saatNo: saatNo,
+                baslangicEndeks: baslangicEndeks,
+                baslangicTarihi: baslangicTarihi,
+                bitisEndeks: bitisEndeks,
+                bitisTarihi: bitisTarihi,
+                aktif: aktif,
+                aciklama: aciklama,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SayaclarTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({aboneId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (aboneId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.aboneId,
+                                referencedTable: $$SayaclarTableReferences
+                                    ._aboneIdTable(db),
+                                referencedColumn: $$SayaclarTableReferences
+                                    ._aboneIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SayaclarTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SayaclarTable,
+      SayaclarData,
+      $$SayaclarTableFilterComposer,
+      $$SayaclarTableOrderingComposer,
+      $$SayaclarTableAnnotationComposer,
+      $$SayaclarTableCreateCompanionBuilder,
+      $$SayaclarTableUpdateCompanionBuilder,
+      (SayaclarData, $$SayaclarTableReferences),
+      SayaclarData,
+      PrefetchHooks Function({bool aboneId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5889,4 +7023,6 @@ class $AppDatabaseManager {
       $$TahakkuklarTableTableManager(_db, _db.tahakkuklar);
   $$TahsilatlarTableTableManager get tahsilatlar =>
       $$TahsilatlarTableTableManager(_db, _db.tahsilatlar);
+  $$SayaclarTableTableManager get sayaclar =>
+      $$SayaclarTableTableManager(_db, _db.sayaclar);
 }
